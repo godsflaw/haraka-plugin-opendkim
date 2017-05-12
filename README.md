@@ -18,18 +18,18 @@ add `opendkim` to `config/plugins`, near the top of the file.
 
 Sane defaults are chosen for you.
 
-* opendkim.general.debug (default: 0)
+* `opendkim.general.debug` (default: 0)
 
   Enable debug logging for all opendkim.general flows.
 
 
-* opendkim.verify.debug (default: 0)
+* `opendkim.verify.debug` (default: 0)
 
   Enable debug logging for all opendkim.verify flows.  If general debug is set,
   this will fall back to that rather than the default.
 
 
-* opendkim.sign.debug (default: 0)
+* `opendkim.sign.debug` (default: 0)
 
   Enable debug logging for all opendkim.sign flows.
 
