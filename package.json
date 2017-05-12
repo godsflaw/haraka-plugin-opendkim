@@ -1,0 +1,37 @@
+{
+  "name": "haraka-plugin-opendkim",
+  "version": "1.0.0",
+  "description": "Haraka plugin that uses libopendkim for DKIM",
+  "main": "index.js",
+  "scripts": {
+    "test": "./run_tests",
+    "lint": "./node_modules/.bin/eslint *.js test/*.js",
+    "cover": "./node_modules/.bin/istanbul cover ./run_tests"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/godsflaw/haraka-plugin-opendkim.git"
+  },
+  "keywords": [
+    "Haraka",
+    "plugin",
+    "opendkim",
+    "dkim",
+    "log"
+  ],
+  "author": "Christopher Mooney <chris@dod.net>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/godsflaw/haraka-plugin-opendkim/issues"
+  },
+  "homepage": "https://github.com/haraka/haraka-plugin-opendkim#readme",
+  "dependencies": {
+    "haraka-constants": "*",
+    "opendkim": "git+ssh://git@github.com/godsflaw/node-opendkim.git"
+  },
+  "devDependencies": {
+    "eslint": "*",
+    "haraka-test-fixtures": "*",
+    "nodeunit": "https://github.com/godsflaw/nodeunit/archive/master.tar.gz"
+  }
+}
