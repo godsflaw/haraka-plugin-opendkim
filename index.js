@@ -5,7 +5,7 @@ var constants = require('haraka-constants');
 exports.register = function() {
   var plugin = this;
 
-  plugin.OpenDKIM = require('opendkim');
+  plugin.OpenDKIM = require('node-opendkim');
 
   plugin.cfg         = plugin.config.get('opendkim.ini');
   plugin.cfg.general = plugin.cfg.general || {};

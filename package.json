@@ -27,7 +27,7 @@
   "homepage": "https://github.com/haraka/haraka-plugin-opendkim#readme",
   "dependencies": {
     "haraka-constants": "*",
-    "opendkim": "git+ssh://git@github.com/godsflaw/node-opendkim.git"
+    "node-opendkim": "https://github.com/godsflaw/node-opendkim/archive/dev.tar.gz"
   },
   "devDependencies": {
     "eslint": "*",

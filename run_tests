@@ -4,6 +4,7 @@
 
 try {
     var reporter = require('nodeunit').reporters.default;
+    var OpenDKIM = require('node-opendkim');
 }
 catch(e) {
     console.log("Error: " + e.message);
