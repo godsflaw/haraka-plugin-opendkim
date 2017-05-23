@@ -1,27 +1,29 @@
 'use strict';
 
+var fs        = require('fs');
 var fixtures  = require('haraka-test-fixtures');
 var constants = require('haraka-constants');
 
-var stub      = fixtures.stub.stub;
+var Connection  = fixtures.connection;
+var Transaction = fixtures.transaction;
+var Stub        = fixtures.stub.stub;
 
 var _set_up = function (done) {
   this.plugin = new fixtures.plugin('opendkim');
 
   // stub out functions
-  this.connection = stub();
+  this.connection = Connection.createConnection();
+  this.connection.transaction = Transaction.createTransaction();
+  this.connection.transaction.message_stream.pipe = Stub();
 
   // some test data
   this.configfile = {
     general : {
-      debug : 0,
+      query_method : 'DKIM_QUERY_FILE',
+      query_info   : './test/fixtures/testkeys',
     },
-    verify : {
-      debug : 0,
-    },
-    sign : {
-      debug : 0,
-    },
+    verify : {},
+    sign : {},
   };
 
   if (this.plugin) {
@@ -36,52 +38,100 @@ var _set_up = function (done) {
 exports.register = {
   setUp : _set_up,
   'should have register function' : function (test) {
+    test.expect(2);
     if (this.plugin) {
-      test.expect(2);
       test.isNotNull(this.plugin);
       test.isFunction(this.plugin.register);
     }
     test.done();
   },
   'register function should call register_hook()' : function (test) {
-    if (this.plugin && this.plugin.OpenDKIM) {
+    test.expect(1);
+    if (this.plugin) {
       this.plugin.register();
-      test.expect(1);
       test.ok(this.plugin.register_hook.called);
     }
     test.done();
   },
   'register_hook() should register for proper hook' : function (test) {
-    if (this.plugin && this.plugin.OpenDKIM) {
+    test.expect(1);
+    if (this.plugin) {
       this.plugin.register();
-      test.expect(1);
       test.equals(this.plugin.register_hook.args[0], 'data_post');
     }
     test.done();
   },
   'register_hook() should register available function' : function (test) {
-    if (this.plugin && this.plugin.OpenDKIM) {
+    test.expect(3);
+    if (this.plugin) {
       this.plugin.register();
-      test.expect(3);
-      test.equals(this.plugin.register_hook.args[1], 'opendkim');
-      test.isNotNull(this.plugin.opendkim);
-      test.isFunction(this.plugin.opendkim);
+      test.equals(this.plugin.register_hook.args[1], 'verify');
+      test.isNotNull(this.plugin.verify);
+      test.isFunction(this.plugin.verify);
+    }
+    test.done();
+  },
+  'plugin OpenDKIM set' : function (test) {
+    test.expect(1);
+    if (this.plugin) {
+      this.plugin.register();
+      test.isFunction(this.plugin.OpenDKIM);
+    }
+    test.done();
+  },
+  'plugin config options set' : function (test) {
+    test.expect(5);
+    if (this.plugin) {
+      this.plugin.register();
+      test.isNotNull(this.plugin.cfg);
+      test.isObject(this.plugin.cfg);
+      test.isObject(this.plugin.cfg.general);
+      test.isObject(this.plugin.cfg.verify);
+      test.isObject(this.plugin.cfg.sign);
     }
     test.done();
   },
 };
 
 exports.hook = {
-  setUp : _set_up,
+  setUp : function(done) {
+    var self = this;
+    _set_up.call(this, function() {
+      self.plugin.register();
+      done();
+    });
+  },
   'returns just next() by default' : function (test) {
-    if (!this.plugin || !this.plugin.OpenDKIM) { return test.done(); }
-
+    test.expect(1);
     var next = function (action) {
-      test.expect(1);
       test.isUndefined(action);
       test.done();
     };
-
-    this.plugin.opendkim(next, this.connection);
+    this.plugin.verify(next, this.connection);
+  },
+  'pipe is established to the message stream' : function (test) {
+    var self = this;
+    test.expect(4);
+    var next = function (action) {
+      test.ok(self.connection.transaction.message_stream.pipe.called);
+      test.isObject(self.connection.transaction.message_stream.pipe.args[0]);
+      test.isObject(self.connection.transaction.message_stream.pipe.args[1]);
+      test.equals(self.connection.transaction.message_stream.pipe.args[1].line_endings, '\r\n');
+      test.done();
+    };
+    this.plugin.verify(next, this.connection);
+  },
+  'query_method and query_info options are respected' : function (test) {
+    var self = this;
+    test.expect(4);
+    self.connection.transaction.message_stream.pipe.called;
+    var next = function (action) {
+      test.ok(self.connection.transaction.message_stream.pipe.called);
+      test.isObject(self.connection.transaction.message_stream.pipe.args[0]);
+      test.isObject(self.connection.transaction.message_stream.pipe.args[1]);
+      test.equals(self.connection.transaction.message_stream.pipe.args[1].line_endings, '\r\n');
+      test.done();
+    };
+    this.plugin.verify(next, this.connection);
   },
 };
