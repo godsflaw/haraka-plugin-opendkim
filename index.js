@@ -138,7 +138,6 @@ exports.verify = function(next, connection) {
 
   opendkim.verify({id: txn.uuid});
 
-  // TODO(godsflaw): test me
   var verifier = new OpenDKIMVerifyStream(function(err, res) {
     connection.auth_results(
       'dkim=' + res.result +
