@@ -71,6 +71,14 @@ exports.register = {
     }
     test.done();
   },
+  'register_hook() should register with higher priority' : function (test) {
+    test.expect(1);
+    if (this.plugin) {
+      this.plugin.register();
+      test.equals(this.plugin.register_hook.args[2], -25);
+    }
+    test.done();
+  },
   'plugin OpenDKIM set' : function (test) {
     test.expect(1);
     if (this.plugin) {
@@ -101,37 +109,13 @@ exports.hook = {
       done();
     });
   },
-  'returns just next() by default' : function (test) {
-    test.expect(1);
-    var next = function (action) {
-      test.isUndefined(action);
-      test.done();
-    };
-    this.plugin.verify(next, this.connection);
-  },
   'pipe is established to the message stream' : function (test) {
-    var self = this;
     test.expect(4);
-    var next = function (action) {
-      test.ok(self.connection.transaction.message_stream.pipe.called);
-      test.isObject(self.connection.transaction.message_stream.pipe.args[0]);
-      test.isObject(self.connection.transaction.message_stream.pipe.args[1]);
-      test.equals(self.connection.transaction.message_stream.pipe.args[1].line_endings, '\r\n');
-      test.done();
-    };
-    this.plugin.verify(next, this.connection);
-  },
-  'query_method and query_info options are respected' : function (test) {
-    var self = this;
-    test.expect(4);
-    self.connection.transaction.message_stream.pipe.called;
-    var next = function (action) {
-      test.ok(self.connection.transaction.message_stream.pipe.called);
-      test.isObject(self.connection.transaction.message_stream.pipe.args[0]);
-      test.isObject(self.connection.transaction.message_stream.pipe.args[1]);
-      test.equals(self.connection.transaction.message_stream.pipe.args[1].line_endings, '\r\n');
-      test.done();
-    };
-    this.plugin.verify(next, this.connection);
+    this.plugin.verify(Stub(), this.connection);
+    test.ok(this.connection.transaction.message_stream.pipe.called);
+    test.isObject(this.connection.transaction.message_stream.pipe.args[0]);
+    test.isObject(this.connection.transaction.message_stream.pipe.args[1]);
+    test.equals(this.connection.transaction.message_stream.pipe.args[1].line_endings, '\r\n');
+    test.done();
   },
 };
