@@ -75,6 +75,14 @@ exports.OpenDKIMVerifyStream = {
     test.equals(this.plugin.logdebug.args[0], 'test');
     test.done();
   },
+  '_complete sets state correctly' : function (test) {
+    var vs = this.verify_stream;
+    test.expect(2);
+    vs._complete();
+    test.ok(!vs.writable);
+    test.ok(vs.finished);
+    test.done();
+  },
   '_build_results pass' : function (test) {
     var vs = this.verify_stream;
     test.expect(8);
