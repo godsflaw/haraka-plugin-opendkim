@@ -75,6 +75,14 @@ exports.OpenDKIMVerifyStream = {
     test.equals(this.plugin.logdebug.args[0], 'test');
     test.done();
   },
+  '_complete sets state correctly' : function (test) {
+    var vs = this.verify_stream;
+    test.expect(2);
+    vs._complete();
+    test.ok(!vs.writable);
+    test.ok(vs.finished);
+    test.done();
+  },
   '_build_results pass' : function (test) {
     var vs = this.verify_stream;
     test.expect(8);
@@ -99,9 +107,9 @@ exports.OpenDKIMVerifyStream = {
     var result = vs._build_result();
     test.isUndefined(result.error);
     test.equals(result.result, 'pass');
-    test.equals(result.identity, 'missing identity');
-    test.equals(result.domain,   'missing domain');
-    test.equals(result.selector, 'missing selector');
+    test.equals(result.identity, '');
+    test.equals(result.domain,   '');
+    test.equals(result.selector, '');
     test.done();
   },
   '_build_results none' : function (test) {
@@ -294,22 +302,21 @@ exports.OpenDKIMVerifyStream = {
     test.ok(this.connection.auth_results.called);
     test.equals(
       this.connection.auth_results.args[0],
-      'dkim=none (No signature) header.i=missing identity'
+      'dkim=none (No signature) header.i='
     );
     test.ok(this.connection.loginfo.called);
     test.equals(
       this.connection.loginfo.args[1],
-      'identity="missing identity" domain="missing domain" ' +
-      'selector="missing selector" result=none (No signature)'
+      'identity="" domain="" selector="" result=none (No signature)'
     );
     test.ok(this.connection.logdebug.called);
     test.ok(this.connection.transaction.results.add.called);
-    test.equals(this.connection.transaction.results.add.args[1].err, 'missing domain (No signature)');
+    test.equals(this.connection.transaction.results.add.args[1].skip, '(No signature)');
     test.isObject(this.connection.transaction.notes.opendkim_result);
     test.equals(this.connection.transaction.notes.opendkim_result.result, 'none');
-    test.equals(this.connection.transaction.notes.opendkim_result.identity, 'missing identity');
-    test.equals(this.connection.transaction.notes.opendkim_result.domain, 'missing domain');
-    test.equals(this.connection.transaction.notes.opendkim_result.selector, 'missing selector');
+    test.equals(this.connection.transaction.notes.opendkim_result.identity, '');
+    test.equals(this.connection.transaction.notes.opendkim_result.domain, '');
+    test.equals(this.connection.transaction.notes.opendkim_result.selector, '');
     test.done();
   },
   'results message with modified body (fail)' : function (test) {
