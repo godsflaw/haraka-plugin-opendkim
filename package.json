@@ -1,6 +1,6 @@
 {
   "name": "haraka-plugin-opendkim",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Haraka plugin that uses libopendkim for DKIM",
   "main": "index.js",
   "scripts": {
@@ -27,7 +27,7 @@
   "homepage": "https://github.com/haraka/haraka-plugin-opendkim#readme",
   "dependencies": {
     "haraka-constants": "*",
-    "node-opendkim": "https://github.com/godsflaw/node-opendkim/archive/dev.tar.gz"
+    "node-opendkim": "*"
   },
   "devDependencies": {
     "eslint": "*",
