@@ -139,7 +139,7 @@ exports.verify = function(next, connection) {
   plugin.logdebug('haraka-plugin-opendkim: hooked data_post');
 
   if (!connection || !connection.transaction) {
-      return next();
+      return;
   }
 
   var txn = connection.transaction;
@@ -189,8 +189,7 @@ exports.verify = function(next, connection) {
 
     // Store results for other plugins
     txn.notes.opendkim_result = res;
-
-    return next();
   }, plugin, opendkim);
+  txn.message_stream.once('end', next);
   txn.message_stream.pipe(verifier, { line_endings: '\r\n' });
 };
