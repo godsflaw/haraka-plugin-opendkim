@@ -15,6 +15,7 @@ var _set_up = function (done) {
   this.connection = Connection.createConnection();
   this.connection.transaction = Transaction.createTransaction();
   this.connection.transaction.message_stream.pipe = Stub();
+  this.connection.transaction.message_stream.once = Stub();
 
   // some test data
   this.configfile = {
