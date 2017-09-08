@@ -7,12 +7,18 @@ var constants = require('haraka-constants');
 class OpenDKIMVerifyStream extends Stream {
   constructor (cb, plugin, opendkim) {
     super();
+
+    var self      = this;
     this.plugin   = plugin;
     this.writable = true;
     this.finished = false;
-    this.callback = cb;
     this.timeout  = ((plugin.timeout) ? plugin.timeout - 1 : 30);
     this.opendkim = opendkim;
+
+    this.callback = function(err, res) {
+      self._complete();
+      return cb(err, res);
+    };
   }
 }
 
@@ -89,9 +95,9 @@ OpenDKIMVerifyStream.prototype.write = function(buf) {
     } catch (err) {
       return this.callback(err, this._build_result(err));
     }
-  } else {
-    return;
   }
+
+  return true;
 };
 
 OpenDKIMVerifyStream.prototype.end = function(buf) {
@@ -139,7 +145,7 @@ exports.verify = function(next, connection) {
   plugin.logdebug('haraka-plugin-opendkim: hooked data_post');
 
   if (!connection || !connection.transaction) {
-      return;
+      return next();
   }
 
   var txn = connection.transaction;
@@ -153,9 +159,6 @@ exports.verify = function(next, connection) {
   opendkim.verify({id: txn.uuid});
 
   var verifier = new OpenDKIMVerifyStream(function(err, res) {
-    // no matter how we got in here, we have to shut this down.
-    verifier._complete();
-
     connection.auth_results(
       'dkim=' + res.result +
       ((res.error) ? ' (' + res.error + ')' : '') +
@@ -189,7 +192,10 @@ exports.verify = function(next, connection) {
 
     // Store results for other plugins
     txn.notes.opendkim_result = res;
+
+    return process.nextTick(() => {
+      next();
+    });
   }, plugin, opendkim);
-  txn.message_stream.once('end', next);
   txn.message_stream.pipe(verifier, { line_endings: '\r\n' });
 };
