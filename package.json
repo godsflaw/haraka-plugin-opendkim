@@ -1,6 +1,6 @@
 {
   "name": "haraka-plugin-opendkim",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "Haraka plugin that uses libopendkim for DKIM",
   "main": "index.js",
   "scripts": {
