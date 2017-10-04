@@ -1,8 +1,5 @@
-[![Build Status][ci-img]][ci-url]
-[![Code Coverage][cov-img]][cov-url]
-[![Code Climate][clim-img]][clim-url]
+[![Codefresh build status]( https://g.codefresh.io/api/badges/build?repoOwner=godsflaw&repoName=haraka-plugin-opendkim&branch=dev&pipelineName=haraka-plugin-opendkim&accountName=godsflaw&type=cf-1)]( https://g.codefresh.io/repositories/godsflaw/haraka-plugin-opendkim/builds?filter=trigger:build;branch:dev;service:59d4f41489854200012ede9b~haraka-plugin-opendkim)
 [![NPM][npm-img]][npm-url]
-[![Greenkeeper badge](https://badges.greenkeeper.io/godsflaw/haraka-plugin-opendkim.svg)](https://greenkeeper.io/)
 
 # haraka-plugin-opendkim
 
