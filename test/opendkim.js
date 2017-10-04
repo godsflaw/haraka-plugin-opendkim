@@ -15,7 +15,6 @@ var _set_up = function (done) {
   this.connection = Connection.createConnection();
   this.connection.transaction = Transaction.createTransaction();
   this.connection.transaction.message_stream.pipe = Stub();
-  this.connection.transaction.message_stream.once = Stub();
 
   // some test data
   this.configfile = {
@@ -117,14 +116,6 @@ exports.hook = {
     test.isObject(this.connection.transaction.message_stream.pipe.args[0]);
     test.isObject(this.connection.transaction.message_stream.pipe.args[1]);
     test.equals(this.connection.transaction.message_stream.pipe.args[1].line_endings, '\r\n');
-    test.done();
-  },
-  'once is passed end for the message stream' : function (test) {
-    test.expect(3);
-    this.plugin.verify(Stub(), this.connection);
-    test.ok(this.connection.transaction.message_stream.pipe.called);
-    test.equals(this.connection.transaction.message_stream.once.args[0], 'end');
-    test.isFunction(this.connection.transaction.message_stream.once.args[1]);
     test.done();
   },
 };

@@ -1,4 +1,4 @@
-[![Codefresh build status]( https://g.codefresh.io/api/badges/build?repoOwner=godsflaw&repoName=haraka-plugin-opendkim&branch=dev&pipelineName=haraka-plugin-opendkim&accountName=godsflaw&type=cf-1)]( https://g.codefresh.io/repositories/godsflaw/haraka-plugin-opendkim/builds?filter=trigger:build;branch:dev;service:59d4f41489854200012ede9b~haraka-plugin-opendkim)
+[![Codefresh build status][cf-img]][cf-url]
 [![NPM][npm-img]][npm-url]
 
 # haraka-plugin-opendkim
@@ -31,11 +31,7 @@ Sane defaults are chosen for you.
   Enable debug logging for all opendkim.sign flows.
 
 
-[ci-img]: https://travis-ci.org/godsflaw/haraka-plugin-opendkim.svg
-[ci-url]: https://travis-ci.org/godsflaw/haraka-plugin-opendkim
-[cov-img]: https://codecov.io/github/godsflaw/haraka-plugin-opendkim/coverage.svg
-[cov-url]: https://codecov.io/github/godsflaw/haraka-plugin-opendkim
-[clim-img]: https://codeclimate.com/github/godsflaw/haraka-plugin-opendkim/badges/gpa.svg
-[clim-url]: https://codeclimate.com/github/godsflaw/haraka-plugin-opendkim
+[cf-img]: https://g.codefresh.io/api/badges/build?repoOwner=godsflaw&repoName=haraka-plugin-opendkim&branch=dev&pipelineName=haraka-plugin-opendkim&accountName=godsflaw&type=cf-1
+[cf-url]: https://g.codefresh.io/repositories/godsflaw/haraka-plugin-opendkim/builds?filter=trigger:build;branch:dev;service:59d4f41489854200012ede9b~haraka-plugin-opendkim
 [npm-img]: https://nodei.co/npm/haraka-plugin-opendkim.png
 [npm-url]: https://www.npmjs.com/package/haraka-plugin-opendkim
