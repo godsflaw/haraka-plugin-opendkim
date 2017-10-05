@@ -31,6 +31,13 @@ OpenDKIMVerifyStream.prototype._complete = function() {
   this.finished = true;
 };
 
+OpenDKIMVerifyStream.prototype._get_chunk = function(buf) {
+  var chunk = buf
+    .toString('utf8')
+    .replace(/\nTo:\s+/g, '\nTo: ');  // fixes wrapped To: header from yahoo
+  return chunk;
+};
+
 OpenDKIMVerifyStream.prototype._build_result = function(error) {
   var result = {};
 
@@ -86,7 +93,7 @@ OpenDKIMVerifyStream.prototype._build_result = function(error) {
 
 OpenDKIMVerifyStream.prototype.write = function(buf) {
   if (buf && buf.length && !(this.finished)) {
-    var chunk = buf.toString('utf8');
+    var chunk = this._get_chunk(buf);
     try {
       this.opendkim.chunk({
         message: chunk,
@@ -107,7 +114,7 @@ OpenDKIMVerifyStream.prototype.end = function(buf) {
 
   try {
     if (buf && buf.length) {
-      var chunk = buf.toString('utf8');
+      var chunk = this._get_chunk(buf);
       this.opendkim.chunk({
         message: chunk,
         length: chunk.length
