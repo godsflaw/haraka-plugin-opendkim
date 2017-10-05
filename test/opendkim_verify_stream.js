@@ -50,6 +50,9 @@ exports.OpenDKIMVerifyStream = {
       self.message_bad_altered_body = Buffer.from(
         fs.readFileSync(path + 'message_bad_altered_body.eml', 'utf8')
       );
+      self.message_split_to_header = Buffer.from(
+        fs.readFileSync(path + 'message_split_to_header.eml', 'utf8')
+      );
       self.next = Stub();
       self.plugin.register();
       self.plugin.verify(self.next, self.connection);
@@ -212,6 +215,22 @@ exports.OpenDKIMVerifyStream = {
     test.ok(!(vs.callback.called));
     test.done();
   },
+  '_get_chunk does not mutate a good message' : function (test) {
+    var vs = this.verify_stream;
+    vs.callback = Stub();
+    test.expect(1);
+    var chunk = vs._get_chunk(this.message_good);
+    test.equals(this.message_good.toString('utf8'), chunk);
+    test.done();
+  },
+  '_get_chunk mutates a bad message' : function (test) {
+    var vs = this.verify_stream;
+    vs.callback = Stub();
+    test.expect(1);
+    var chunk = vs._get_chunk(this.message_split_to_header);
+    test.ok(this.message_split_to_header.toString('utf8') !== chunk);
+    test.done();
+  },
   'write a good message' : function (test) {
     var vs = this.verify_stream;
     vs.callback = Stub();
@@ -274,6 +293,38 @@ exports.OpenDKIMVerifyStream = {
     this.connection.loginfo = Stub();
     this.connection.logdebug = Stub();
     vs.end(this.message_good);
+    test.ok(this.connection.auth_results.called);
+    test.equals(
+      this.connection.auth_results.args[0],
+      'dkim=pass header.i=@example.com'
+    );
+    test.ok(this.connection.loginfo.called);
+    test.equals(
+      this.connection.loginfo.args[1],
+      'identity="@example.com" domain="example.com" selector="test" result=pass'
+    );
+    test.ok(this.connection.logdebug.called);
+    test.ok(this.connection.transaction.results.add.called);
+    test.equals(this.connection.transaction.results.add.args[1].pass, 'example.com');
+    test.isObject(this.connection.transaction.notes.opendkim_result);
+    test.equals(this.connection.transaction.notes.opendkim_result.result, 'pass');
+    test.equals(this.connection.transaction.notes.opendkim_result.identity, '@example.com');
+    test.equals(this.connection.transaction.notes.opendkim_result.domain, 'example.com');
+    test.equals(this.connection.transaction.notes.opendkim_result.selector, 'test');
+    test.done();
+  },
+  'results message with return after To: header (regression/pass)' : function (test) {
+    // This tests fix for messages from yahoo.com that will construct a To: header
+    // that line wraps if the recipeient address is too long.  libopendkim can handle
+    // this if the string is broken up, but not if the wrap happens before any real
+    // characters of the header appear.  AFAICT, yahoo is RFC compliant here, and
+    // opendkim should perhaps be more forgiving.  This fix was just quicker to
+    // implement than pushing a fix to opendkim (which is the corret solution).
+    var vs = this.verify_stream;
+    test.expect(12);
+    this.connection.loginfo = Stub();
+    this.connection.logdebug = Stub();
+    vs.end(this.message_split_to_header);
     test.ok(this.connection.auth_results.called);
     test.equals(
       this.connection.auth_results.args[0],
