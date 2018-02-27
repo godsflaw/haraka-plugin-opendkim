@@ -14,13 +14,13 @@ ADD config ${LOCALDIR}/config
 ADD test ${LOCALDIR}/test
 
 # install deps
+RUN npm config set unsafe-perm true
 RUN apk upgrade --update && \
   apk add --no-cache --virtual .gyp python make g++ opendkim-dev && \
   npm install -g node-gyp
 
 # install codebase
 WORKDIR "${LOCALDIR}"
-RUN npm config set unsafe-perm true
 RUN npm install --unsafe-perm
 
 # startup any services
