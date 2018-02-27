@@ -15,7 +15,7 @@ class OpenDKIMVerifyStream extends Stream {
     this.timeout  = ((plugin.timeout) ? plugin.timeout - 1 : 30);
     this.opendkim = opendkim;
 
-    this.callback = function(err, res) {
+    this.callback = function (err, res) {
       self._complete();
       return cb(err, res);
     };
@@ -26,19 +26,19 @@ OpenDKIMVerifyStream.prototype.debug = function (str) {
   this.plugin.logdebug(str);
 };
 
-OpenDKIMVerifyStream.prototype._complete = function() {
+OpenDKIMVerifyStream.prototype._complete = function () {
   this.writable = false;
   this.finished = true;
 };
 
-OpenDKIMVerifyStream.prototype._get_chunk = function(buf) {
+OpenDKIMVerifyStream.prototype._get_chunk = function (buf) {
   var chunk = buf
     .toString('utf8')
     .replace(/\nTo:\s+/g, '\nTo: ');  // fixes wrapped To: header from yahoo
   return chunk;
 };
 
-OpenDKIMVerifyStream.prototype._build_result = function(error) {
+OpenDKIMVerifyStream.prototype._build_result = function (error) {
   var result = {};
 
   if (error === undefined) {
@@ -91,47 +91,69 @@ OpenDKIMVerifyStream.prototype._build_result = function(error) {
   return result;
 };
 
-OpenDKIMVerifyStream.prototype.write = function(buf) {
-  if (buf && buf.length && !(this.finished)) {
-    var chunk = this._get_chunk(buf);
-    try {
-      this.opendkim.chunk({
+OpenDKIMVerifyStream.prototype.write = function (buf) {
+  var self = this;
+
+  if (buf && buf.length && !(self.finished)) {
+    var chunk = self._get_chunk(buf);
+    var options = {
         message: chunk,
         length: chunk.length
-      });
-    } catch (err) {
-      return this.callback(err, this._build_result(err));
-    }
+    };
+    self.opendkim.chunk(options, function (err, result) {
+      if (err) {
+        return self.callback(err, self._build_result(err));
+      }
+
+      self.emit('drain');
+    });
   }
 
-  return true;
+  return false;
 };
 
-OpenDKIMVerifyStream.prototype.end = function(buf) {
-  if (this.finished) {
+OpenDKIMVerifyStream.prototype.end = function (buf) {
+  var self = this;
+
+  if (self.finished) {
     return;
   }
 
-  try {
-    if (buf && buf.length) {
-      var chunk = this._get_chunk(buf);
-      this.opendkim.chunk({
+  if (buf && buf.length) {
+    // There is still a buffer, we need to process it
+    var chunk = self._get_chunk(buf);
+    var options = {
         message: chunk,
         length: chunk.length
-      });
-    }
-    this.opendkim.chunk_end();
-  } catch (err) {
-    return this.callback(err, this._build_result(err));
-  }
+    };
+    self.opendkim.chunk(options, async function (err, result) {
+      if (err) {
+        return self.callback(err, self._build_result(err));
+      }
 
-  return this.callback(undefined, this._build_result());
+      try {
+        await self.opendkim.chunk_end();
+        return self.callback(undefined, self._build_result());
+      } catch (err) {
+        return self.callback(err, self._build_result(err));
+      }
+    });
+  } else {
+    // empty buffer, just call chunk_end() and move on
+    self.opendkim.chunk_end(function (err, result) {
+      if (err) {
+        return self.callback(err, self._build_result(err));
+      }
+
+      return self.callback(undefined, self._build_result());
+    });
+  }
 };
 
 //
 // Plugin entry point
 //
-exports.register = function() {
+exports.register = function () {
   var plugin = this;
 
   plugin.OpenDKIM    = require('node-opendkim');
@@ -146,7 +168,7 @@ exports.register = function() {
   plugin.register_hook('data_post', 'verify', -25);
 };
 
-exports.verify = function(next, connection) {
+exports.verify = function (next, connection) {
   var plugin = this;
 
   plugin.logdebug('haraka-plugin-opendkim: hooked data_post');
@@ -163,9 +185,9 @@ exports.verify = function(next, connection) {
     opendkim.query_info(this.cfg.general.query_info);
   }
 
-  opendkim.verify({id: txn.uuid});
+  opendkim.verify_sync({id: txn.uuid});
 
-  var verifier = new OpenDKIMVerifyStream(function(err, res) {
+  var verifier = new OpenDKIMVerifyStream(function (err, res) {
     connection.auth_results(
       'dkim=' + res.result +
       ((res.error) ? ' (' + res.error + ')' : '') +
