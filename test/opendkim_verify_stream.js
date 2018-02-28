@@ -211,7 +211,7 @@ exports.OpenDKIMVerifyStream = {
     var vs = this.verify_stream;
     vs.opendkim.chunk = Stub();
     test.expect(2);
-    test.ok(!vs.write(Buffer.from('')));
+    test.ok(vs.write(Buffer.from('')));
     test.ok(!(vs.opendkim.chunk.called));
     test.done();
   },
@@ -233,19 +233,16 @@ exports.OpenDKIMVerifyStream = {
   },
   'write a good message' : function (test) {
     var vs = this.verify_stream;
-    vs.opendkim.chunk_orig = vs.opendkim.chunk;
-    vs.callback = Stub();
-    var cb = function (err, result) {
+    vs.callback = function (err, result) {
       test.isUndefined(err); // this is a failure condition
       test.done();
     };
-    vs.opendkim.chunk = function (options, cb) {
+    vs.once('drain', (drain) => {
       test.ok(true); // chunk called
-      vs.opendkim.chunk_orig(options, cb);
       test.done();
-    };
-    test.expect(1);
-    vs.write(this.message_good);
+    });
+    test.expect(2);
+    test.ok(!vs.write(this.message_good));
   },
   'write a message with no signature' : function (test) {
     var vs = this.verify_stream;
@@ -261,22 +258,19 @@ exports.OpenDKIMVerifyStream = {
   },
   'write an empty chunk and end' : function (test) {
     var vs = this.verify_stream;
-    vs.callback = Stub();
-    test.expect(6);
-    test.ok(!vs.write(Buffer.from('')));
-    test.ok(!(vs.callback.called));
     vs.callback = function (err, result) {
       test.ok(1); // called
       test.isObject(err);
-      test.equals(result.error, 'Syntax error');
+      test.equals(err.message, 'Syntax error');
       test.equals(result.result, 'fail');
       test.done();
     };
+    test.expect(5);
+    test.ok(vs.write(Buffer.from('')));
     vs.end();
   },
   'write a good message and end' : function (test) {
     var vs = this.verify_stream;
-    vs.opendkim.chunk_orig = vs.opendkim.chunk;
     vs.callback = function (err, result) {
       test.isUndefined(err);
       test.equals(result.result, 'pass');
@@ -285,16 +279,41 @@ exports.OpenDKIMVerifyStream = {
       test.equals(result.selector, 'test');
       test.done();
     };
-    var cb = function (err, result) {
-      test.isUndefined(err); // this is a failure condition
+    test.expect(5);
+    vs.end(this.message_good);
+  },
+  'chunk good message across write and end' : function (test) {
+    var chunks = 16;
+    var numChunks = Math.ceil(this.message_good.length / chunks);
+    var vs = this.verify_stream;
+    var iter = 0;
+    var offset = 0;
+    var chunk = this.message_good.slice(offset, offset + chunks);
+
+    test.expect(71);
+
+    vs.callback = function (err, result) {
+      test.isUndefined(err);
+      test.equals(result.result, 'pass');
+      test.equals(result.identity, '@example.com');
+      test.equals(result.domain, 'example.com');
+      test.equals(result.selector, 'test');
       test.done();
     };
-    vs.opendkim.chunk = function (options, cb) {
-      test.ok(true); // chunk called
-      vs.opendkim.chunk_orig(options, cb);
-    };
-    test.expect(6);
-    vs.end(this.message_good);
+
+    vs.on('drain', (drain) => {
+      iter++;
+      offset += chunks;
+      chunk = this.message_good.slice(offset, offset + chunks);
+
+      if (iter < numChunks - 1) {
+        test.ok(!vs.write(chunk));
+      } else {
+        vs.end(chunk);
+      }
+    });
+
+    test.ok(!vs.write(chunk));
   },
   'write a message with no signature and end' : function (test) {
     var vs = this.verify_stream;

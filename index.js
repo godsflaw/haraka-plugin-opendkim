@@ -100,16 +100,17 @@ OpenDKIMVerifyStream.prototype.write = function (buf) {
         message: chunk,
         length: chunk.length
     };
-    self.opendkim.chunk(options, function (err, result) {
-      if (err) {
-        return self.callback(err, self._build_result(err));
-      }
-
+    self.opendkim.chunk(options)
+    .then(result => {
       self.emit('drain');
+    }).catch(error => {
+      self.callback(error, self._build_result(error));
     });
-  }
 
-  return false;
+    return false;
+  } else {
+    return true;
+  }
 };
 
 OpenDKIMVerifyStream.prototype.end = function (buf) {
@@ -126,26 +127,21 @@ OpenDKIMVerifyStream.prototype.end = function (buf) {
         message: chunk,
         length: chunk.length
     };
-    self.opendkim.chunk(options, async function (err, result) {
-      if (err) {
-        return self.callback(err, self._build_result(err));
-      }
-
-      try {
-        await self.opendkim.chunk_end();
-        return self.callback(undefined, self._build_result());
-      } catch (err) {
-        return self.callback(err, self._build_result(err));
-      }
+    self.opendkim.chunk(options)
+    .then(result => {
+      return self.opendkim.chunk_end();
+    }).then(result => {
+      self.callback(undefined, self._build_result());
+    }).catch(error => {
+      self.callback(error, self._build_result(error));
     });
   } else {
     // empty buffer, just call chunk_end() and move on
-    self.opendkim.chunk_end(function (err, result) {
-      if (err) {
-        return self.callback(err, self._build_result(err));
-      }
-
-      return self.callback(undefined, self._build_result());
+    self.opendkim.chunk_end()
+    .then(result => {
+      self.callback(undefined, self._build_result());
+    }).catch(error => {
+      self.callback(error, self._build_result(error));
     });
   }
 };
