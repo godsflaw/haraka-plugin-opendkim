@@ -207,12 +207,12 @@ exports.OpenDKIMVerifyStream = {
     }
     test.done();
   },
-  'write an empty chunk' : function (test) {
+  'write of an empty chunk should just ignore' : function (test) {
     var vs = this.verify_stream;
-    vs.callback = Stub();
-    test.expect(1);
-    vs.write(Buffer.from(''));
-    test.ok(!(vs.callback.called));
+    vs.opendkim.chunk = Stub();
+    test.expect(2);
+    test.ok(vs.write(Buffer.from('')));
+    test.ok(!(vs.opendkim.chunk.called));
     test.done();
   },
   '_get_chunk does not mutate a good message' : function (test) {
@@ -233,85 +233,132 @@ exports.OpenDKIMVerifyStream = {
   },
   'write a good message' : function (test) {
     var vs = this.verify_stream;
-    vs.callback = Stub();
-    test.expect(1);
-    vs.write(this.message_good);
-    test.ok(!(vs.callback.called));
-    test.done();
+    vs.callback = function (err, result) {
+      test.isUndefined(err); // this is a failure condition
+      test.done();
+    };
+    vs.once('drain', (drain) => {
+      test.ok(true); // chunk called
+      test.done();
+    });
+    test.expect(2);
+    test.ok(!vs.write(this.message_good));
   },
   'write a message with no signature' : function (test) {
     var vs = this.verify_stream;
-    vs.callback = Stub();
-    test.expect(4);
-    vs.write(this.message_no_signature);
-    test.ok(vs.callback.called);
-    test.isObject(vs.callback.args[0]);
-    test.equals(vs.callback.args[0].message, 'No signature');
-    test.equals(vs.callback.args[1].result, 'none');
-    test.done();
+    vs.callback = function (err, result) {
+      test.ok(1); // called
+      test.isObject(err);
+      test.equals(err.message, 'No signature');
+      test.equals(result.result, 'none');
+      test.done();
+    };
+    test.expect(5);
+    test.ok(!vs.write(this.message_no_signature));
   },
   'write an empty chunk and end' : function (test) {
     var vs = this.verify_stream;
-    vs.callback = Stub();
+    vs.callback = function (err, result) {
+      test.ok(1); // called
+      test.isObject(err);
+      test.equals(err.message, 'Syntax error');
+      test.equals(result.result, 'fail');
+      test.done();
+    };
     test.expect(5);
-    vs.write(Buffer.from(''));
-    test.ok(!(vs.callback.called));
+    test.ok(vs.write(Buffer.from('')));
     vs.end();
-    test.ok(vs.callback.called);
-    test.isObject(vs.callback.args[0]);
-    test.equals(vs.callback.args[0].message, 'Syntax error');
-    test.equals(vs.callback.args[1].result, 'fail');
-    test.done();
   },
   'write a good message and end' : function (test) {
     var vs = this.verify_stream;
-    vs.callback = Stub();
-    test.expect(6);
+    vs.callback = function (err, result) {
+      test.isUndefined(err);
+      test.equals(result.result, 'pass');
+      test.equals(result.identity, '@example.com');
+      test.equals(result.domain, 'example.com');
+      test.equals(result.selector, 'test');
+      test.done();
+    };
+    test.expect(5);
     vs.end(this.message_good);
-    test.ok(vs.callback.called);
-    test.isUndefined(vs.callback.args[0]);
-    test.equals(vs.callback.args[1].result, 'pass');
-    test.equals(vs.callback.args[1].identity, '@example.com');
-    test.equals(vs.callback.args[1].domain, 'example.com');
-    test.equals(vs.callback.args[1].selector, 'test');
-    test.done();
+  },
+  'chunk good message across write and end' : function (test) {
+    var chunks = 16;
+    var numChunks = Math.ceil(this.message_good.length / chunks);
+    var vs = this.verify_stream;
+    var iter = 0;
+    var offset = 0;
+    var chunk = this.message_good.slice(offset, offset + chunks);
+
+    test.expect(71);
+
+    vs.callback = function (err, result) {
+      test.isUndefined(err);
+      test.equals(result.result, 'pass');
+      test.equals(result.identity, '@example.com');
+      test.equals(result.domain, 'example.com');
+      test.equals(result.selector, 'test');
+      test.done();
+    };
+
+    vs.on('drain', (drain) => {
+      iter++;
+      offset += chunks;
+      chunk = this.message_good.slice(offset, offset + chunks);
+
+      if (iter < numChunks - 1) {
+        test.ok(!vs.write(chunk));
+      } else {
+        vs.end(chunk);
+      }
+    });
+
+    test.ok(!vs.write(chunk));
   },
   'write a message with no signature and end' : function (test) {
     var vs = this.verify_stream;
-    vs.callback = Stub();
-    test.expect(4);
+    vs.callback = function (err, result) {
+      test.isObject(err);
+      test.equals(result.error, 'No signature');
+      test.equals(result.result, 'none');
+      test.done();
+    };
+    test.expect(3);
     vs.end(this.message_no_signature);
-    test.ok(vs.callback.called);
-    test.isObject(vs.callback.args[0]);
-    test.equals(vs.callback.args[0].message, 'No signature');
-    test.equals(vs.callback.args[1].result, 'none');
-    test.done();
   },
   'results good message (pass)' : function (test) {
+    var self = this;
     var vs = this.verify_stream;
     test.expect(12);
     this.connection.loginfo = Stub();
     this.connection.logdebug = Stub();
     vs.end(this.message_good);
-    test.ok(this.connection.auth_results.called);
-    test.equals(
-      this.connection.auth_results.args[0],
-      'dkim=pass header.i=@example.com'
-    );
-    test.ok(this.connection.loginfo.called);
-    test.equals(
-      this.connection.loginfo.args[1],
-      'identity="@example.com" domain="example.com" selector="test" result=pass'
-    );
-    test.ok(this.connection.logdebug.called);
-    test.ok(this.connection.transaction.results.add.called);
-    test.equals(this.connection.transaction.results.add.args[1].pass, 'example.com');
-    test.isObject(this.connection.transaction.notes.opendkim_result);
-    test.equals(this.connection.transaction.notes.opendkim_result.result, 'pass');
-    test.equals(this.connection.transaction.notes.opendkim_result.identity, '@example.com');
-    test.equals(this.connection.transaction.notes.opendkim_result.domain, 'example.com');
-    test.equals(this.connection.transaction.notes.opendkim_result.selector, 'test');
-    test.done();
+    var finish = function () {
+      if (!self.next.called) {
+        return setTimeout(finish, 1);
+      }
+
+      test.ok(self.connection.auth_results.called);
+      test.equals(
+        self.connection.auth_results.args[0],
+        'dkim=pass header.i=@example.com'
+      );
+      test.ok(self.connection.loginfo.called);
+      test.equals(
+        self.connection.loginfo.args[1],
+        'identity="@example.com" domain="example.com" selector="test" result=pass'
+      );
+      test.ok(self.connection.logdebug.called);
+      test.ok(self.connection.transaction.results.add.called);
+      test.equals(self.connection.transaction.results.add.args[1].pass, 'example.com');
+      test.isObject(self.connection.transaction.notes.opendkim_result);
+      test.equals(self.connection.transaction.notes.opendkim_result.result, 'pass');
+      test.equals(self.connection.transaction.notes.opendkim_result.identity, '@example.com');
+      test.equals(self.connection.transaction.notes.opendkim_result.domain, 'example.com');
+      test.equals(self.connection.transaction.notes.opendkim_result.selector, 'test');
+      test.done();
+    };
+    setTimeout(finish, 1);
   },
   'results message with return after To: header (regression/pass)' : function (test) {
     // This tests fix for messages from yahoo.com that will construct a To: header
@@ -320,81 +367,105 @@ exports.OpenDKIMVerifyStream = {
     // characters of the header appear.  AFAICT, yahoo is RFC compliant here, and
     // opendkim should perhaps be more forgiving.  This fix was just quicker to
     // implement than pushing a fix to opendkim (which is the corret solution).
+    var self = this;
     var vs = this.verify_stream;
     test.expect(12);
     this.connection.loginfo = Stub();
     this.connection.logdebug = Stub();
     vs.end(this.message_split_to_header);
-    test.ok(this.connection.auth_results.called);
-    test.equals(
-      this.connection.auth_results.args[0],
-      'dkim=pass header.i=@example.com'
-    );
-    test.ok(this.connection.loginfo.called);
-    test.equals(
-      this.connection.loginfo.args[1],
-      'identity="@example.com" domain="example.com" selector="test" result=pass'
-    );
-    test.ok(this.connection.logdebug.called);
-    test.ok(this.connection.transaction.results.add.called);
-    test.equals(this.connection.transaction.results.add.args[1].pass, 'example.com');
-    test.isObject(this.connection.transaction.notes.opendkim_result);
-    test.equals(this.connection.transaction.notes.opendkim_result.result, 'pass');
-    test.equals(this.connection.transaction.notes.opendkim_result.identity, '@example.com');
-    test.equals(this.connection.transaction.notes.opendkim_result.domain, 'example.com');
-    test.equals(this.connection.transaction.notes.opendkim_result.selector, 'test');
-    test.done();
+    var finish = function () {
+      if (!self.next.called) {
+        return setTimeout(finish, 1);
+      }
+
+      test.ok(self.connection.auth_results.called);
+      test.equals(
+        self.connection.auth_results.args[0],
+        'dkim=pass header.i=@example.com'
+      );
+      test.ok(self.connection.loginfo.called);
+      test.equals(
+        self.connection.loginfo.args[1],
+        'identity="@example.com" domain="example.com" selector="test" result=pass'
+      );
+      test.ok(self.connection.logdebug.called);
+      test.ok(self.connection.transaction.results.add.called);
+      test.equals(self.connection.transaction.results.add.args[1].pass, 'example.com');
+      test.isObject(self.connection.transaction.notes.opendkim_result);
+      test.equals(self.connection.transaction.notes.opendkim_result.result, 'pass');
+      test.equals(self.connection.transaction.notes.opendkim_result.identity, '@example.com');
+      test.equals(self.connection.transaction.notes.opendkim_result.domain, 'example.com');
+      test.equals(self.connection.transaction.notes.opendkim_result.selector, 'test');
+      test.done();
+    };
+    setTimeout(finish, 1);
   },
   'results message with no signature (none)' : function (test) {
+    var self = this;
     var vs = this.verify_stream;
     test.expect(12);
     this.connection.loginfo = Stub();
     this.connection.logdebug = Stub();
     vs.end(this.message_no_signature);
-    test.ok(this.connection.auth_results.called);
-    test.equals(
-      this.connection.auth_results.args[0],
-      'dkim=none (No signature) header.i='
-    );
-    test.ok(this.connection.loginfo.called);
-    test.equals(
-      this.connection.loginfo.args[1],
-      'identity="" domain="" selector="" result=none (No signature)'
-    );
-    test.ok(this.connection.logdebug.called);
-    test.ok(this.connection.transaction.results.add.called);
-    test.equals(this.connection.transaction.results.add.args[1].skip, '(No signature)');
-    test.isObject(this.connection.transaction.notes.opendkim_result);
-    test.equals(this.connection.transaction.notes.opendkim_result.result, 'none');
-    test.equals(this.connection.transaction.notes.opendkim_result.identity, '');
-    test.equals(this.connection.transaction.notes.opendkim_result.domain, '');
-    test.equals(this.connection.transaction.notes.opendkim_result.selector, '');
-    test.done();
+    var finish = function () {
+      if (!self.next.called) {
+        return setTimeout(finish, 1);
+      }
+
+      test.ok(self.connection.auth_results.called);
+      test.equals(
+        self.connection.auth_results.args[0],
+        'dkim=none (No signature) header.i='
+      );
+      test.ok(self.connection.loginfo.called);
+      test.equals(
+        self.connection.loginfo.args[1],
+        'identity="" domain="" selector="" result=none (No signature)'
+      );
+      test.ok(self.connection.logdebug.called);
+      test.ok(self.connection.transaction.results.add.called);
+      test.equals(self.connection.transaction.results.add.args[1].skip, '(No signature)');
+      test.isObject(self.connection.transaction.notes.opendkim_result);
+      test.equals(self.connection.transaction.notes.opendkim_result.result, 'none');
+      test.equals(self.connection.transaction.notes.opendkim_result.identity, '');
+      test.equals(self.connection.transaction.notes.opendkim_result.domain, '');
+      test.equals(self.connection.transaction.notes.opendkim_result.selector, '');
+      test.done();
+    };
+    setTimeout(finish, 1);
   },
   'results message with modified body (fail)' : function (test) {
+    var self = this;
     var vs = this.verify_stream;
     test.expect(12);
     this.connection.loginfo = Stub();
     this.connection.logdebug = Stub();
     vs.end(this.message_bad_altered_body);
-    test.ok(this.connection.auth_results.called);
-    test.equals(
-      this.connection.auth_results.args[0],
-      'dkim=fail (Bad signature) header.i=@example.com'
-    );
-    test.ok(this.connection.loginfo.called);
-    test.equals(
-      this.connection.loginfo.args[1],
-      'identity="@example.com" domain="example.com" selector="test" result=fail (Bad signature)'
-    );
-    test.ok(this.connection.logdebug.called);
-    test.ok(this.connection.transaction.results.add.called);
-    test.equals(this.connection.transaction.results.add.args[1].fail, 'example.com (Bad signature)');
-    test.isObject(this.connection.transaction.notes.opendkim_result);
-    test.equals(this.connection.transaction.notes.opendkim_result.result, 'fail');
-    test.equals(this.connection.transaction.notes.opendkim_result.identity, '@example.com');
-    test.equals(this.connection.transaction.notes.opendkim_result.domain, 'example.com');
-    test.equals(this.connection.transaction.notes.opendkim_result.selector, 'test');
-    test.done();
+    var finish = function () {
+      if (!self.next.called) {
+        return setTimeout(finish, 1);
+      }
+
+      test.ok(self.connection.auth_results.called);
+      test.equals(
+        self.connection.auth_results.args[0],
+        'dkim=fail (Bad signature) header.i=@example.com'
+      );
+      test.ok(self.connection.loginfo.called);
+      test.equals(
+        self.connection.loginfo.args[1],
+        'identity="@example.com" domain="example.com" selector="test" result=fail (Bad signature)'
+      );
+      test.ok(self.connection.logdebug.called);
+      test.ok(self.connection.transaction.results.add.called);
+      test.equals(self.connection.transaction.results.add.args[1].fail, 'example.com (Bad signature)');
+      test.isObject(self.connection.transaction.notes.opendkim_result);
+      test.equals(self.connection.transaction.notes.opendkim_result.result, 'fail');
+      test.equals(self.connection.transaction.notes.opendkim_result.identity, '@example.com');
+      test.equals(self.connection.transaction.notes.opendkim_result.domain, 'example.com');
+      test.equals(self.connection.transaction.notes.opendkim_result.selector, 'test');
+      test.done();
+    };
+    setTimeout(finish, 1);
   },
 };
