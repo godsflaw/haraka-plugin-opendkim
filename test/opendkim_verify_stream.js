@@ -79,14 +79,6 @@ exports.OpenDKIMVerifyStream = {
     test.equals(this.plugin.logdebug.args[0], 'test');
     test.done();
   },
-  '_complete sets state correctly' : function (test) {
-    var vs = this.verify_stream;
-    test.expect(2);
-    vs._complete();
-    test.ok(!vs.writable);
-    test.ok(vs.finished);
-    test.done();
-  },
   '_build_results pass' : function (test) {
     var vs = this.verify_stream;
     test.expect(8);
@@ -233,40 +225,23 @@ exports.OpenDKIMVerifyStream = {
   },
   'write a good message' : function (test) {
     var vs = this.verify_stream;
-    vs.callback = function (err, result) {
-      test.isUndefined(err); // this is a failure condition
-      test.done();
-    };
-    vs.once('drain', (drain) => {
-      test.ok(true); // chunk called
-      test.done();
-    });
     test.expect(2);
-    test.ok(!vs.write(this.message_good));
-  },
-  'write a message with no signature' : function (test) {
-    var vs = this.verify_stream;
-    vs.callback = function (err, result) {
-      test.ok(1); // called
-      test.isObject(err);
-      test.equals(err.message, 'No signature');
-      test.equals(result.result, 'none');
-      test.done();
-    };
-    test.expect(5);
-    test.ok(!vs.write(this.message_no_signature));
+    test.ok(vs.write(this.message_good));
+    test.equals(vs.chunks.length, 1);
+    test.done();
   },
   'write an empty chunk and end' : function (test) {
     var vs = this.verify_stream;
     vs.callback = function (err, result) {
       test.ok(1); // called
       test.isObject(err);
-      test.equals(err.message, 'Syntax error');
-      test.equals(result.result, 'fail');
+      test.equals(err.message, 'chunk(): length must be defined and non-zero');
+      test.equals(result.result, 'invalid');
       test.done();
     };
-    test.expect(5);
+    test.expect(6);
     test.ok(vs.write(Buffer.from('')));
+    test.equals(vs.chunks.length, 0);
     vs.end();
   },
   'write a good message and end' : function (test) {
@@ -286,9 +261,6 @@ exports.OpenDKIMVerifyStream = {
     var chunks = 16;
     var numChunks = Math.ceil(this.message_good.length / chunks);
     var vs = this.verify_stream;
-    var iter = 0;
-    var offset = 0;
-    var chunk = this.message_good.slice(offset, offset + chunks);
 
     test.expect(71);
 
@@ -301,19 +273,11 @@ exports.OpenDKIMVerifyStream = {
       test.done();
     };
 
-    vs.on('drain', (drain) => {
-      iter++;
-      offset += chunks;
-      chunk = this.message_good.slice(offset, offset + chunks);
+    for (var iter = 0, offset = 0; iter < numChunks - 1; iter++, offset += chunks) {
+      test.ok(vs.write(this.message_good.slice(offset, offset + chunks)));
+    }
 
-      if (iter < numChunks - 1) {
-        test.ok(!vs.write(chunk));
-      } else {
-        vs.end(chunk);
-      }
-    });
-
-    test.ok(!vs.write(chunk));
+    vs.end(this.message_good.slice(offset, offset + chunks));
   },
   'write a message with no signature and end' : function (test) {
     var vs = this.verify_stream;
