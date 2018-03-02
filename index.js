@@ -8,27 +8,19 @@ class OpenDKIMVerifyStream extends Stream {
   constructor (cb, plugin, opendkim) {
     super();
 
-    var self      = this;
-    this.plugin   = plugin;
-    this.writable = true;
-    this.finished = false;
-    this.timeout  = ((plugin.timeout) ? plugin.timeout - 1 : 30);
-    this.opendkim = opendkim;
-
-    this.callback = function (err, res) {
-      self._complete();
-      return cb(err, res);
-    };
+    var self       = this;
+    this.plugin    = plugin;
+    this.writable  = true;
+    this.chunks    = [];
+    this.chunksLen = 0;
+    this.timeout   = ((plugin.timeout) ? plugin.timeout - 1 : 30);
+    this.opendkim  = opendkim;
+    this.callback  = cb;
   }
 }
 
 OpenDKIMVerifyStream.prototype.debug = function (str) {
   this.plugin.logdebug(str);
-};
-
-OpenDKIMVerifyStream.prototype._complete = function () {
-  this.writable = false;
-  this.finished = true;
 };
 
 OpenDKIMVerifyStream.prototype._get_chunk = function (buf) {
@@ -59,6 +51,10 @@ OpenDKIMVerifyStream.prototype._build_result = function (error) {
     // The 'invalid' case.
     result.result = 'invalid';
     result.error  = error.message;
+  } else if (error.message === 'chunk(): length must be defined and non-zero') {
+    // The 'invalid' case.
+    result.result = 'invalid';
+    result.error  = 'Invalid Message Size';
   } else {
     // Everything else is simply a 'fail'
     result.result = 'fail';
@@ -92,57 +88,39 @@ OpenDKIMVerifyStream.prototype._build_result = function (error) {
 };
 
 OpenDKIMVerifyStream.prototype.write = function (buf) {
-  var self = this;
-
-  if (buf && buf.length && !(self.finished)) {
-    var chunk = self._get_chunk(buf);
-    var options = {
-        message: chunk,
-        length: chunk.length
-    };
-    self.opendkim.chunk(options)
-    .then(result => {
-      self.emit('drain');
-    }).catch(error => {
-      self.callback(error, self._build_result(error));
-    });
-
-    return false;
-  } else {
-    return true;
+  if (buf && buf.length) {
+    this.chunks.push(buf);
+    this.chunksLen += buf.length;
   }
+  return true;
 };
 
 OpenDKIMVerifyStream.prototype.end = function (buf) {
-  var self = this;
-
-  if (self.finished) {
-    return;
+  if (buf && buf.length) {
+    // There is still a buffer, we need to tack it on.
+    this.chunks.push(buf);
+    this.chunksLen += buf.length;
   }
 
-  if (buf && buf.length) {
-    // There is still a buffer, we need to process it
-    var chunk = self._get_chunk(buf);
+  var chunk = this._get_chunk(Buffer.concat(this.chunks, this.chunksLen));
+  this.chunks = [];
+  this.chunksLen = 0;
+
+  try {
     var options = {
         message: chunk,
         length: chunk.length
     };
-    self.opendkim.chunk(options)
+    this.opendkim.chunk(options)
     .then(result => {
-      return self.opendkim.chunk_end();
+      return this.opendkim.chunk_end();
     }).then(result => {
-      self.callback(undefined, self._build_result());
+      this.callback(undefined, this._build_result());
     }).catch(error => {
-      self.callback(error, self._build_result(error));
+      this.callback(error, this._build_result(error));
     });
-  } else {
-    // empty buffer, just call chunk_end() and move on
-    self.opendkim.chunk_end()
-    .then(result => {
-      self.callback(undefined, self._build_result());
-    }).catch(error => {
-      self.callback(error, self._build_result(error));
-    });
+  } catch (err) {
+    this.callback(err, this._build_result(err));
   }
 };
 
